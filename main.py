@@ -246,11 +246,29 @@ class CoreConceptExtractor:
             seed_keywords = self._parse_keyword_response(response)
         return {"seed_keywords": seed_keywords}
     
-    def step3_human_evaluation(self, state: ExtractionState, feedback: ValidationFeedback = None) -> ExtractionState:
-        # Accept feedback as a parameter from the main Gradio UI, do not launch Gradio here
+    def step3_human_evaluation(self, state: ExtractionState) -> ExtractionState:
+        """Step 3: Human in the loop evaluation with Gradio UI (three options)"""
+        concept_matrix = state["concept_matrix"]
+        seed_keywords = state["seed_keywords"]
+
+        # Prepare messages for Gradio UI
+        msgs = self.validation_messages
+
+        # Instead of CLI, expose these for UI rendering
+        state["ui_display"] = {
+            "concept_matrix": concept_matrix.dict(),
+            "seed_keywords": seed_keywords.dict(),
+            "messages": msgs
+        }
+
+        # Interrupt workflow for UI confirmation
+        from langgraph.graph import interrupt
+        interrupt(state)
+
+        # When resumed, expect 'validation_feedback' in state
+        feedback = state.get("validation_feedback")
         if feedback is None:
-            feedback = ValidationFeedback(action="approve")
-        state["validation_feedback"] = feedback
+            raise RuntimeError("Workflow resumed without human feedback at step3_human_evaluation.")
         return {"validation_feedback": feedback}
 
     def manual_editing(self, state: ExtractionState) -> ExtractionState:
