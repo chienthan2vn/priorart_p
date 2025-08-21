@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from typing import Dict, List, TypedDict, Annotated, Optional
 from langchain_community.llms import Ollama
-from langchain_openai import ChatOpenAI
+# from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain.agents import create_react_agent, AgentExecutor
 from langchain.tools import Tool
@@ -134,13 +134,13 @@ class CoreConceptExtractor:
         # Use settings from config file with fallback to parameters
         self.model_name = model_name if model_name is not None else settings.DEFAULT_MODEL_NAME
         self.use_checkpointer = use_checkpointer if use_checkpointer is not None else settings.USE_CHECKPOINTER
-
-        self.llm = ChatOpenAI(
-            model_name="qwen/qwen-2.5-72b-instruct:free",
-            temperature=0.7,
-            openai_api_key="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",
-            base_url="https://openrouter.ai/api/v1"
-        )
+        self.llm = Ollama(model=self.model_name, temperature=settings.MODEL_TEMPERATURE, num_ctx=settings.NUM_CTX)
+        # self.llm = ChatOpenAI(
+        #     model_name="qwen/qwen-2.5-72b-instruct:free",
+        #     temperature=0.7,
+        #     openai_api_key="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",
+        #     base_url="https://openrouter.ai/api/v1"
+        # )
         self.tavily_search = TavilySearch(
             max_results=settings.MAX_SEARCH_RESULTS,
             topic="general",
@@ -230,7 +230,7 @@ class CoreConceptExtractor:
         """Normalize and clean input text before processing"""    
         # Get normalization prompt and parser from ExtractionPrompts
         prompt, parser = self.prompts.get_normalization_prompt_and_parser()
-        response = self.llm.invoke(prompt.format(input=state["input_text"])).content
+        response = self.llm.invoke(prompt.format(input=state["input_text"]))
 
         try:
             normalized_data = parser.parse(response)
@@ -267,7 +267,7 @@ class CoreConceptExtractor:
         # Use normalized problem for concept extraction if available
 
         prompt, parser = self.prompts.get_phase1_prompt_and_parser()
-        response = self.llm.invoke(prompt.format(problem=state["problem"])).content
+        response = self.llm.invoke(prompt.format(problem=state["problem"]))
         
         try:
             concept_data = parser.parse(response)
@@ -291,7 +291,7 @@ class CoreConceptExtractor:
             object_system=concept_matrix.object_system,
             environment_field=concept_matrix.environment_field,
             feedback=feedback
-        )).content
+        ))
         
         try:
             keyword_data = parser.parse(response)
@@ -474,7 +474,7 @@ class CoreConceptExtractor:
                 keyword=keyword,
                 context=context,
                 snippets=formatted_snippets
-            )).content
+            ))
 
             try:
                 parsed_result = parser.parse(response)
@@ -527,7 +527,7 @@ class CoreConceptExtractor:
         #     response = self.llm.invoke(prompt.format(input_text=input_text))
         # else:
         #     response = self.llm.invoke(prompt.format(idea=state["input_text"]))
-        response = self.llm.invoke(prompt.format(idea=state["input_text"])).content
+        response = self.llm.invoke(prompt.format(idea=state["input_text"]))
 
         concept_data = parser.parse(response)
         
@@ -555,7 +555,7 @@ class CoreConceptExtractor:
             object_system_keys=object_system_keys,
             environment_field_keys=environment_field_keys,
             CPC_CODES=fipc
-        )).content
+        ))
 
         concept_data = parser.parse(response)
         logger.info(f"🔍 Generated {len(concept_data.queries)} search queries")
@@ -610,7 +610,7 @@ class CoreConceptExtractor:
                 result = parse_idea_input(state["input_text"])
                 temp = lay_thong_tin_patent(url)
                 ex_text = prompt(temp['abstract'], temp['description'], temp['claims'])
-                res = self.llm.invoke(ex_text).content
+                res = self.llm.invoke(ex_text)
                 logger.debug(f"📄 LLM evaluation response for {url}: {res}")
                 
                 res = res.replace("```json", '')

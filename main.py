@@ -261,50 +261,42 @@ class CoreConceptExtractor:
             else:
                 return ValidationFeedback(action="approve")
 
-        with gr.Blocks() as demo:
-            gr.Markdown("### Human Evaluation")
-            gr.Markdown("#### Concept Matrix")
-            for field, value in concept_matrix.dict().items():
-                gr.Markdown(f"**{field.replace('_', ' ').title()}**: {value}")
-            gr.Markdown("#### Seed Keywords")
-            for field, keywords in seed_keywords.dict().items():
-                gr.Markdown(f"**{field.replace('_', ' ').title()}**: {keywords}")
+        def gradio_human_evaluation(concept_matrix, seed_keywords):
+            def submit(action, reject_feedback, edit_problem, edit_object, edit_env):
+                if action == "approve":
+                    return ValidationFeedback(action="approve")
+                elif action == "reject":
+                    return ValidationFeedback(action="reject", feedback=reject_feedback)
+                elif action == "edit":
+                    edited_keywords = SeedKeywords(
+                        problem_purpose=[kw.strip() for kw in edit_problem.split(",") if kw.strip()],
+                        object_system=[kw.strip() for kw in edit_object.split(",") if kw.strip()],
+                        environment_field=[kw.strip() for kw in edit_env.split(",") if kw.strip()],
+                    )
+                    return ValidationFeedback(action="edit", edited_keywords=edited_keywords)
+                else:
+                    return ValidationFeedback(action="approve")
 
-            action = gr.Radio(["approve", "reject", "edit"], label="Choose Action", value="approve")
-            reject_feedback = gr.Textbox(label="Feedback if rejected", visible=False)
-            edit_problem = gr.Textbox(label="Edit Problem Purpose", value=", ".join(seed_keywords.problem_purpose), visible=False)
-            edit_object = gr.Textbox(label="Edit Object System", value=", ".join(seed_keywords.object_system), visible=False)
-            edit_env = gr.Textbox(label="Edit Environment Field", value=", ".join(seed_keywords.environment_field), visible=False)
-
-            def update_visibility(selected):
-                return (
-                    gr.update(visible=selected == "reject"),
-                    gr.update(visible=selected == "edit"),
-                    gr.update(visible=selected == "edit"),
-                    gr.update(visible=selected == "edit"),
-                )
-
-            action.change(
-                update_visibility,
-                inputs=[action],
-                outputs=[reject_feedback, edit_problem, edit_object, edit_env]
+            demo = gr.Interface(
+                fn=submit,
+                inputs=[
+                    gr.Radio(["approve", "reject", "edit"], label="Choose Action", value="approve"),
+                    gr.Textbox(label="Feedback if rejected"),
+                    gr.Textbox(label="Edit Problem Purpose", value=", ".join(seed_keywords.problem_purpose)),
+                    gr.Textbox(label="Edit Object System", value=", ".join(seed_keywords.object_system)),
+                    gr.Textbox(label="Edit Environment Field", value=", ".join(seed_keywords.environment_field)),
+                ],
+                outputs="json",
+                title="Human Evaluation",
+                description=f"#### Concept Matrix\n" +
+                    "\n".join([f"**{field.replace('_', ' ').title()}**: {value}" for field, value in concept_matrix.dict().items()]) +
+                    "\n#### Seed Keywords\n" +
+                    "\n".join([f"**{field.replace('_', ' ').title()}**: {keywords}" for field, keywords in seed_keywords.dict().items()])
             )
+            result = demo.launch(share=False, inline=True, block=True)
+            return result
 
-            submit_btn = gr.Button("Submit")
-            output = gr.State()
-
-            submit_btn.click(
-                submit,
-                inputs=[action, reject_feedback, edit_problem, edit_object, edit_env],
-                outputs=output
-            )
-
-        result = gr.Interface(
-            fn=submit,
-            inputs=[action, reject_feedback, edit_problem, edit_object, edit_env],
-            outputs="state"
-        ).launch(share=False, inline=True, block=True)
-        feedback = result
+        feedback = gradio_human_evaluation(concept_matrix, seed_keywords)
         state["validation_feedback"] = feedback
         return {"validation_feedback": feedback}
 
