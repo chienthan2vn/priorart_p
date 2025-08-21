@@ -4,79 +4,46 @@ Provides a simple interface to run the patent keyword extraction system
 """
 
 from src.core.extractor import CoreConceptExtractor
+import gradio as gr
 
-def main():
-    """Main function to run the patent keyword extraction"""
-    
-    # Sample patent idea text for testing
-    sample_text = """
-    **Idea title**: Smart Irrigation System with IoT Sensors
+extractor = CoreConceptExtractor()
 
-    **User scenario**: A farmer managing a large agricultural field needs to optimize water usage 
-    while ensuring crops receive adequate moisture. The farmer wants to monitor soil conditions 
-    remotely and automatically adjust irrigation based on real-time data from multiple field locations.
+def run_extraction(problem, technical):
+    input_text = f"Problem: {problem}\nTechnical: {technical}"
+    results = extractor.extract_keywords(input_text)
+    # Format results for display
+    output = ""
+    for key, value in results.items():
+        if value is None:
+            continue
+        output += f"### {key}\n"
+        if hasattr(value, "dict"):
+            for subkey, subval in value.dict().items():
+                output += f"- **{subkey.replace('_', ' ').title()}**: {subval}\n"
+        elif isinstance(value, dict):
+            for subkey, subval in value.items():
+                output += f"- **{subkey}**: {subval}\n"
+        elif isinstance(value, list):
+            for i, item in enumerate(value, 1):
+                if isinstance(item, dict):
+                    output += f"{i}. " + ", ".join([f"{k}: {v}" for k, v in item.items()]) + "\n"
+                else:
+                    output += f"{i}. {item}\n"
+        else:
+            output += f"{value}\n"
+    return output
 
-    **User problem**: Traditional irrigation systems either over-water or under-water crops because 
-    they operate on fixed schedules without considering actual soil moisture, weather conditions, 
-    or crop-specific needs. This leads to water waste, increased costs, and potentially reduced 
-    crop yields.
-    """
-    
-    print("🚀 Starting Patent AI Agent - Keyword Extraction System")
-    print("=" * 60)
-    
-    # Initialize the extractor
-    extractor = CoreConceptExtractor()
-    
-    # Run the extraction workflow
-    print("\n📝 Processing patent idea...")
-    print(f"Input text: {sample_text[:100]}...")
-    
-    try:
-        results = extractor.extract_keywords(sample_text)
-        
-        print("\n✅ Extraction completed!")
-        print("\n📊 Results Summary:")
-        print("-" * 40)
-
-        # Print all ExtractionState fields for full transparency
-        for key, value in results.items():
-            if value is None:
-                continue
-            print(f"\n🔹 {key}:")
-            if hasattr(value, "dict"):
-                for subkey, subval in value.dict().items():
-                    print(f"  • {subkey.replace('_', ' ').title()}: {subval}")
-            elif isinstance(value, dict):
-                for subkey, subval in value.items():
-                    print(f"  • {subkey}: {subval}")
-            elif isinstance(value, list):
-                for i, item in enumerate(value, 1):
-                    if isinstance(item, dict):
-                        print(f"  {i}. " + ", ".join([f"{k}: {v}" for k, v in item.items()]))
-                    else:
-                        print(f"  {i}. {item}")
-            else:
-                print(f"  {value}")
-
-        # Save results to JSON file
-        import json
-        import datetime
-        filename = f"extraction_results_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        with open(filename, "w", encoding="utf-8") as f:
-            def serialize(obj):
-                if hasattr(obj, "dict"):
-                    return obj.dict()
-                return obj
-            json.dump({k: serialize(v) for k, v in results.items()}, f, indent=2, ensure_ascii=False)
-        print(f"\n💾 Results saved to {filename}")
-        
-    except KeyboardInterrupt:
-        print("\n\n⚠️ Process interrupted by user")
-    except Exception as e:
-        print(f"\n❌ Error occurred: {str(e)}")
-        import traceback
-        traceback.print_exc()
+demo = gr.Interface(
+    fn=run_extraction,
+    inputs=[
+        gr.Textbox(label="Problem", lines=2, placeholder="Nhập vấn đề kỹ thuật..."),
+        gr.Textbox(label="Technical", lines=2, placeholder="Nhập nội dung kỹ thuật...")
+    ],
+    outputs=gr.Markdown(),
+    title="Patent Keyword Extraction",
+    description="Nhập thông tin vào 2 ô bên dưới. Kết quả sẽ hiển thị đầy đủ, đơn giản và dễ nhìn.",
+    theme="default"
+)
 
 if __name__ == "__main__":
-    main()
+    demo.launch()
