@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from typing import Dict, List, TypedDict, Annotated, Optional
 from langchain_community.llms import Ollama
-# from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain.agents import create_react_agent, AgentExecutor
 from langchain.tools import Tool
@@ -30,7 +30,6 @@ from langchain_tavily import TavilySearch
 from langchain.prompts import PromptTemplate
 from langchain_core.prompts import ChatPromptTemplate
 import requests
-import gradio as gr
 
 # Configure logging
 log_filename = f"patent_extractor_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
@@ -134,13 +133,13 @@ class CoreConceptExtractor:
         # Use settings from config file with fallback to parameters
         self.model_name = model_name if model_name is not None else settings.DEFAULT_MODEL_NAME
         self.use_checkpointer = use_checkpointer if use_checkpointer is not None else settings.USE_CHECKPOINTER
-        self.llm = Ollama(model=self.model_name, temperature=settings.MODEL_TEMPERATURE, num_ctx=settings.NUM_CTX)
-        # self.llm = ChatOpenAI(
-        #     model_name="qwen/qwen-2.5-72b-instruct:free",
-        #     temperature=0.7,
-        #     openai_api_key="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",
-        #     base_url="https://openrouter.ai/api/v1"
-        # )
+
+        self.llm = ChatOpenAI(
+            model_name="qwen/qwen-2.5-72b-instruct:free",
+            temperature=0.7,
+            openai_api_key="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",
+            base_url="https://openrouter.ai/api/v1"
+        )
         self.tavily_search = TavilySearch(
             max_results=settings.MAX_SEARCH_RESULTS,
             topic="general",
@@ -230,7 +229,7 @@ class CoreConceptExtractor:
         """Normalize and clean input text before processing"""    
         # Get normalization prompt and parser from ExtractionPrompts
         prompt, parser = self.prompts.get_normalization_prompt_and_parser()
-        response = self.llm.invoke(prompt.format(input=state["input_text"]))
+        response = self.llm.invoke(prompt.format(input=state["input_text"])).content
 
         try:
             normalized_data = parser.parse(response)
@@ -267,7 +266,7 @@ class CoreConceptExtractor:
         # Use normalized problem for concept extraction if available
 
         prompt, parser = self.prompts.get_phase1_prompt_and_parser()
-        response = self.llm.invoke(prompt.format(problem=state["problem"]))
+        response = self.llm.invoke(prompt.format(problem=state["problem"])).content
         
         try:
             concept_data = parser.parse(response)
@@ -291,7 +290,7 @@ class CoreConceptExtractor:
             object_system=concept_matrix.object_system,
             environment_field=concept_matrix.environment_field,
             feedback=feedback
-        ))
+        )).content
         
         try:
             keyword_data = parser.parse(response)
@@ -303,73 +302,46 @@ class CoreConceptExtractor:
         return {"seed_keywords": seed_keywords}
     
     def step3_human_evaluation(self, state: ExtractionState) -> ExtractionState:
-        """Step 3: Human in the loop evaluation with Gradio UI"""
+        """Step 3: Human in the loop evaluation with three options"""
+        msgs = self.validation_messages
+        
+        print("\n" + msgs["separator"])
+        print(msgs["final_evaluation_title"])
+        print(msgs["separator"])
+        
+        # Display final results
         concept_matrix = state["concept_matrix"]
         seed_keywords = state["seed_keywords"]
-
-        def gradio_ui(concept_matrix, seed_keywords):
-            def submit(action, reject_feedback, edit_problem, edit_object, edit_env):
-                if action == "approve":
-                    return ValidationFeedback(action="approve")
-                elif action == "reject":
-                    return ValidationFeedback(action="reject", feedback=reject_feedback)
-                elif action == "edit":
-                    edited_keywords = SeedKeywords(
-                        problem_purpose=[kw.strip() for kw in edit_problem.split(",") if kw.strip()],
-                        object_system=[kw.strip() for kw in edit_object.split(",") if kw.strip()],
-                        environment_field=[kw.strip() for kw in edit_env.split(",") if kw.strip()],
-                    )
-                    return ValidationFeedback(action="edit", edited_keywords=edited_keywords)
-                else:
-                    return ValidationFeedback(action="approve")
-
-            with gr.Blocks() as demo:
-                gr.Markdown("### Human Evaluation")
-                gr.Markdown("#### Concept Matrix")
-                for field, value in concept_matrix.dict().items():
-                    gr.Markdown(f"**{field.replace('_', ' ').title()}**: {value}")
-                gr.Markdown("#### Seed Keywords")
-                for field, keywords in seed_keywords.dict().items():
-                    gr.Markdown(f"**{field.replace('_', ' ').title()}**: {keywords}")
-
-                action = gr.Radio(["approve", "reject", "edit"], label="Choose Action", value="approve")
-                reject_feedback = gr.Textbox(label="Feedback if rejected", visible=False)
-                edit_problem = gr.Textbox(label="Edit Problem Purpose", value=", ".join(seed_keywords.problem_purpose), visible=False)
-                edit_object = gr.Textbox(label="Edit Object System", value=", ".join(seed_keywords.object_system), visible=False)
-                edit_env = gr.Textbox(label="Edit Environment Field", value=", ".join(seed_keywords.environment_field), visible=False)
-
-                def update_visibility(selected):
-                    return (
-                        gr.update(visible=selected == "reject"),
-                        gr.update(visible=selected == "edit"),
-                        gr.update(visible=selected == "edit"),
-                        gr.update(visible=selected == "edit"),
-                    )
-
-                action.change(
-                    update_visibility,
-                    inputs=[action],
-                    outputs=[reject_feedback, edit_problem, edit_object, edit_env]
-                )
-
-                submit_btn = gr.Button("Submit")
-                output = gr.State()
-
-                submit_btn.click(
-                    submit,
-                    inputs=[action, reject_feedback, edit_problem, edit_object, edit_env],
-                    outputs=output
-                )
-
-            result = gr.Interface(
-                fn=submit,
-                inputs=[action, reject_feedback, edit_problem, edit_object, edit_env],
-                outputs="state"
-            ).launch(share=False, inline=True, block=True)
-            return result
-
-        feedback = gradio_ui(concept_matrix, seed_keywords)
+        
+        print(msgs["concept_matrix_header"])
+        for field, value in concept_matrix.dict().items():
+            print(f"  • {field.replace('_', ' ').title()}: {value}")
+        
+        print(msgs["seed_keywords_header"])
+        for field, keywords in seed_keywords.dict().items():
+            print(f"  • {field.replace('_', ' ').title()}: {keywords}")
+        
+        print(msgs["divider"])
+        print(msgs["action_options"])
+        
+        # Get user action
+        while True:
+            action = input(msgs["action_prompt"]).lower().strip()
+            if action in ['1', 'approve', 'a']:
+                feedback = ValidationFeedback(action="approve")
+                break
+            elif action in ['2', 'reject', 'r']:
+                feedback_text = input(msgs["reject_feedback_prompt"])
+                feedback = ValidationFeedback(action="reject", feedback=feedback_text)
+                break
+            elif action in ['3', 'edit', 'e']:
+                feedback = self._get_manual_edits(seed_keywords)
+                break
+            else:
+                print(msgs["invalid_action"])
+        
         state["validation_feedback"] = feedback
+        
         return {"validation_feedback": feedback}
 
     def manual_editing(self, state: ExtractionState) -> ExtractionState:
@@ -382,38 +354,26 @@ class CoreConceptExtractor:
         return {"seed_keywords": feedback.edited_keywords}
     
     def _get_manual_edits(self, current_keywords: SeedKeywords) -> ValidationFeedback:
-        """Get manual edits from user via Gradio UI"""
-        import gradio as gr
-
-        def submit(edit_problem, edit_object, edit_env):
-            edited_keywords = SeedKeywords(
-                problem_purpose=[kw.strip() for kw in edit_problem.split(",") if kw.strip()],
-                object_system=[kw.strip() for kw in edit_object.split(",") if kw.strip()],
-                environment_field=[kw.strip() for kw in edit_env.split(",") if kw.strip()],
-            )
-            return ValidationFeedback(action="edit", edited_keywords=edited_keywords)
-
-        with gr.Blocks() as demo:
-            gr.Markdown("### Manual Editing Mode")
-            gr.Markdown("Current keywords are shown below. Edit as needed, separate by commas.")
-            edit_problem = gr.Textbox(label="Edit Problem Purpose", value=", ".join(current_keywords.problem_purpose))
-            edit_object = gr.Textbox(label="Edit Object System", value=", ".join(current_keywords.object_system))
-            edit_env = gr.Textbox(label="Edit Environment Field", value=", ".join(current_keywords.environment_field))
-            submit_btn = gr.Button("Submit")
-            output = gr.State()
-
-            submit_btn.click(
-                submit,
-                inputs=[edit_problem, edit_object, edit_env],
-                outputs=output
-            )
-
-        result = gr.Interface(
-            fn=submit,
-            inputs=[edit_problem, edit_object, edit_env],
-            outputs="state"
-        ).launch(share=False, inline=True, block=True)
-        return result
+        """Get manual edits from user"""
+        logger.info("📝 Manual Editing Mode")
+        print("\n📝 Manual Editing Mode")
+        print("Current keywords will be displayed. Press Enter to keep current value, or type new keywords separated by commas.")
+        
+        edited_data = {}
+        
+        for field, keywords in current_keywords.dict().items():
+            field_name = field.replace('_', ' ').title()
+            current_str = ", ".join(keywords)
+            print(f"\n{field_name}: [{current_str}]")
+            
+            new_input = input(f"New {field_name} (or Enter to keep): ").strip()
+            if new_input:
+                edited_data[field] = [kw.strip() for kw in new_input.split(',') if kw.strip()]
+            else:
+                edited_data[field] = keywords
+        
+        edited_keywords = SeedKeywords(**edited_data)
+        return ValidationFeedback(action="edit", edited_keywords=edited_keywords)
       
     def _parse_concept_response(self, response: str) -> ConceptMatrix:
         """Parse response when JSON parsing fails"""
@@ -474,7 +434,7 @@ class CoreConceptExtractor:
                 keyword=keyword,
                 context=context,
                 snippets=formatted_snippets
-            ))
+            )).content
 
             try:
                 parsed_result = parser.parse(response)
@@ -527,7 +487,7 @@ class CoreConceptExtractor:
         #     response = self.llm.invoke(prompt.format(input_text=input_text))
         # else:
         #     response = self.llm.invoke(prompt.format(idea=state["input_text"]))
-        response = self.llm.invoke(prompt.format(idea=state["input_text"]))
+        response = self.llm.invoke(prompt.format(idea=state["input_text"])).content
 
         concept_data = parser.parse(response)
         
@@ -555,7 +515,7 @@ class CoreConceptExtractor:
             object_system_keys=object_system_keys,
             environment_field_keys=environment_field_keys,
             CPC_CODES=fipc
-        ))
+        )).content
 
         concept_data = parser.parse(response)
         logger.info(f"🔍 Generated {len(concept_data.queries)} search queries")
@@ -610,7 +570,7 @@ class CoreConceptExtractor:
                 result = parse_idea_input(state["input_text"])
                 temp = lay_thong_tin_patent(url)
                 ex_text = prompt(temp['abstract'], temp['description'], temp['claims'])
-                res = self.llm.invoke(ex_text)
+                res = self.llm.invoke(ex_text).content
                 logger.debug(f"📄 LLM evaluation response for {url}: {res}")
                 
                 res = res.replace("```json", '')
