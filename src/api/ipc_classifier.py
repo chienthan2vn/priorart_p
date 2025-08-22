@@ -82,7 +82,9 @@ def get_ipc_classification(query: str) -> str:
         headers=headers
     )
     
-    print(f"IPC API Status: {response.status_code}")
+    # Log to stderr instead of stdout to avoid interfering with JSON communication
+    import sys
+    print(f"IPC API Status: {response.status_code}", file=sys.stderr)
     return response.text
 
 

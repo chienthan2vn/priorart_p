@@ -139,7 +139,7 @@ class CoreConceptExtractor:
         self.llm = ChatOpenAI(
             model_name="qwen/qwen-2.5-72b-instruct:free",
             temperature=0.7,
-            openai_api_key="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",
+            openai_api_key="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",
             base_url="https://openrouter.ai/api/v1"
         )
         self.tavily_search = TavilySearch(
@@ -607,8 +607,9 @@ class CoreConceptExtractor:
         response = self.llm.invoke(prompt.format(idea=state["input_text"])).content
 
         concept_data = parser.parse(response)
+        summary_text = concept_data.summary if hasattr(concept_data, 'summary') else str(concept_data)
         
-        return {"summary_text": concept_data}
+        return {"summary_text": summary_text}
 
     def call_ipcs_api(self, state: ExtractionState) -> ExtractionState:
         """Call IPC classification API"""

@@ -120,6 +120,8 @@ def main():
         for key, value in result.items():
             if hasattr(value, 'dict'):
                 serialized_result[key] = value.dict()
+            elif hasattr(value, 'summary'):  # Handle SummaryResponse object
+                serialized_result[key] = value.summary
             elif isinstance(value, list):
                 serialized_result[key] = [
                     item.dict() if hasattr(item, 'dict') else item 

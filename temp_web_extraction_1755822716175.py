@@ -6,8 +6,15 @@ sys.path.append('/home/merlin/project/priorart_p')
 from src.core.extractor import CoreConceptExtractor
 
 def main():
-    input_text = """Problem: hhh
-Technical: hhhhhh"""
+    input_text = """Problem: **Idea title**: Smart Irrigation System with IoT Sensors
+
+    **User scenario**: A farmer managing a large agricultural field needs to optimize water usage 
+    while ensuring crops receive adequate moisture. The farmer wants to monitor soil conditions 
+    remotely and automatically adjust irrigation based on real-time data from multiple field locations.
+Technical: **User problem**: Traditional irrigation systems either over-water or under-water crops because 
+    they operate on fixed schedules without considering actual soil moisture, weather conditions, 
+    or crop-specific needs. This leads to water waste, increased costs, and potentially reduced 
+    crop yields."""
     
     try:
         # Initialize extractor with web_mode=True
