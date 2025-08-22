@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patent AI Agent - Web Interface</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .input-section {
+            margin-bottom: 40px;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        .input-group label {
+            display: block;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+            font-size: 1.1rem;
+        }
+
+        .input-group textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 120px;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-group textarea:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #4f46e5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results-header {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border-left: 4px solid #4f46e5;
+        }
+
+        .results-header h2 {
+            color: #1e293b;
+            margin-bottom: 10px;
+        }
+
+        .results-grid {
+            display: grid;
+            gap: 25px;
+        }
+
+        .result-card {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 25px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .result-card h3 {
+            color: #1e293b;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .result-card .emoji {
+            font-size: 1.5rem;
+        }
+
+        .concept-matrix {
+            display: grid;
+            gap: 15px;
+        }
+
+        .concept-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #10b981;
+        }
+
+        .concept-item strong {
+            color: #065f46;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .keywords-section {
+            display: grid;
+            gap: 15px;
+        }
+
+        .keyword-category {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #f59e0b;
+        }
+
+        .keyword-category strong {
+            color: #92400e;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .keyword-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .keyword-tag {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .evaluation-section {
+            display: none;
+            background: #fffbeb;
+            border: 2px solid #f59e0b;
+            border-radius: 10px;
+            padding: 25px;
+            margin-top: 30px;
+        }
+
+        .evaluation-title {
+            color: #92400e;
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .evaluation-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .eval-btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .eval-btn.approve {
+            background: #dcfce7;
+            color: #166534;
+            border: 2px solid #16a34a;
+        }
+
+        .eval-btn.reject {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 2px solid #dc2626;
+        }
+
+        .eval-btn.edit {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border: 2px solid #3b82f6;
+        }
+
+        .eval-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .feedback-section {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .feedback-section textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            min-height: 100px;
+            margin-bottom: 15px;
+        }
+
+        .final-results {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .url-list {
+            display: grid;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .url-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .url-link {
+            color: #4f46e5;
+            text-decoration: none;
+            font-weight: 500;
+            flex: 1;
+            margin-right: 15px;
+        }
+
+        .url-link:hover {
+            text-decoration: underline;
+        }
+
+        .url-scores {
+            display: flex;
+            gap: 10px;
+        }
+
+        .score-badge {
+            background: #f3f4f6;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert.error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .alert.success {
+            background: #f0fdf4;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        /* Final Results Styles */
+        .final-results-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .final-keywords {
+            display: grid;
+            gap: 15px;
+        }
+
+        .keyword-expansion {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #8b5cf6;
+        }
+
+        .keyword-expansion strong {
+            color: #6b21a8;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .synonym-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .synonym-tag {
+            background: #ede9fe;
+            color: #6b21a8;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .queries-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .query-item {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #06b6d4;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .url-item {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+        }
+
+        .url-item.high-score {
+            border-left: 4px solid #10b981;
+            background: #f0fdf4;
+        }
+
+        .url-item.medium-score {
+            border-left: 4px solid #f59e0b;
+            background: #fffbeb;
+        }
+
+        .url-item.low-score {
+            border-left: 4px solid #ef4444;
+            background: #fef2f2;
+        }
+
+        .url-info {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .url-address {
+            color: #6b7280;
+            font-size: 0.8rem;
+            word-break: break-all;
+        }
+
+        .url-scores {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .score-badge.scenario {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .score-badge.problem {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .score-badge.total {
+            background: #f3e8ff;
+            color: #7c3aed;
+            font-weight: 600;
+        }
+
+        .summary-stats {
+            margin-top: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 2px solid #e5e7eb;
+        }
+
+        .stat-item strong {
+            display: block;
+            color: #374151;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .evaluation-buttons {
+                flex-direction: column;
+            }
+            
+            .eval-btn {
+                width: 100%;
+                text-align: center;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .url-scores {
+                justify-content: center;
+            }
+
+            .synonym-tags, .keyword-tags {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔬 Patent AI Agent</h1>
+            <p>Advanced keyword extraction system with human-in-the-loop evaluation</p>
+        </div>
+
+        <div class="content">
+            <!-- Input Section -->
+            <div class="input-section" id="inputSection">
+                <div class="input-group">
+                    <label for="problemInput">Problem Description</label>
+                    <textarea 
+                        id="problemInput" 
+                        placeholder="Describe the technical problem that your invention aims to solve..."
+                    ></textarea>
+                </div>
+
+                <div class="input-group">
+                    <label for="technicalInput">Technical Content</label>
+                    <textarea 
+                        id="technicalInput" 
+                        placeholder="Describe the technical aspects, methods, or systems of your invention..."
+                    ></textarea>
+                </div>
+
+                <button class="btn" id="extractBtn" onclick="startExtraction()">
+                    <span>🚀</span>
+                    Start Extraction
+                </button>
+            </div>
+
+            <!-- Loading Section -->
+            <div class="loading" id="loadingSection">
+                <div class="spinner"></div>
+                <h3>Processing your patent idea...</h3>
+                <p>AI is analyzing the content and extracting key concepts. This may take a few moments.</p>
+            </div>
+
+            <!-- Results Section -->
+            <div class="results" id="resultsSection">
+                <div class="results-header">
+                    <h2>📊 Extraction Results</h2>
+                    <p>Review the AI-generated concepts and keywords below</p>
+                </div>
+
+                <div class="results-grid">
+                    <!-- Concept Matrix -->
+                    <div class="result-card">
+                        <h3><span class="emoji">🎯</span>Concept Matrix</h3>
+                        <div class="concept-matrix" id="conceptMatrix">
+                            <!-- Dynamic content -->
+                        </div>
+                    </div>
+
+                    <!-- Seed Keywords -->
+                    <div class="result-card">
+                        <h3><span class="emoji">🔑</span>Seed Keywords</h3>
+                        <div class="keywords-section" id="seedKeywords">
+                            <!-- Dynamic content -->
+                        </div>
+                    </div>
+
+                    <!-- IPC Classifications -->
+                    <div class="result-card">
+                        <h3><span class="emoji">📋</span>IPC Classifications</h3>
+                        <div id="ipcClassifications">
+                            <!-- Dynamic content -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Human Evaluation Section -->
+                <div class="evaluation-section" id="evaluationSection">
+                    <div class="evaluation-title">
+                        <span>👤</span>
+                        Human Evaluation Required
+                    </div>
+                    <p style="margin-bottom: 20px;">Please review the extracted concepts and keywords. Choose an action:</p>
+                    
+                    <div class="evaluation-buttons">
+                        <button class="eval-btn approve" onclick="handleEvaluation('approve')">
+                            ✅ Approve - Keywords look good
+                        </button>
+                        <button class="eval-btn reject" onclick="handleEvaluation('reject')">
+                            ❌ Reject - Regenerate keywords
+                        </button>
+                        <button class="eval-btn edit" onclick="handleEvaluation('edit')">
+                            ✏️ Edit - Manually modify keywords
+                        </button>
+                    </div>
+
+                    <div class="feedback-section" id="feedbackSection">
+                        <textarea id="feedbackText" placeholder="Please provide feedback for regeneration..."></textarea>
+                        <button class="btn" onclick="submitFeedback()">Submit Feedback</button>
+                    </div>
+                </div>
+
+                <!-- Final Results -->
+                <div class="final-results" id="finalResults">
+                    <div class="result-card">
+                        <h3><span class="emoji">🎉</span>Final Results</h3>
+                        <div id="finalResultsContent">
+                            <!-- Dynamic content -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let currentSessionId = null;
+
+        // Socket event listeners
+        socket.on('extraction_ready', (data) => {
+            if (data.sessionId === currentSessionId) {
+                displayResults(data.results);
+                showEvaluationSection();
+            }
+        });
+
+        socket.on('extraction_completed', (data) => {
+            if (data.sessionId === currentSessionId) {
+                showFinalResults(data);
+            }
+        });
+
+        socket.on('extraction_error', (data) => {
+            if (data.sessionId === currentSessionId) {
+                showError('Extraction failed: ' + data.error);
+            }
+        });
+
+        async function startExtraction() {
+            const problem = document.getElementById('problemInput').value.trim();
+            const technical = document.getElementById('technicalInput').value.trim();
+
+            if (!problem || !technical) {
+                showError('Please fill in both problem and technical fields.');
+                return;
+            }
+
+            // Show loading state
+            document.getElementById('inputSection').style.display = 'none';
+            document.getElementById('loadingSection').style.display = 'block';
+            document.getElementById('resultsSection').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/extract', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ problem, technical })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentSessionId = data.sessionId;
+                } else {
+                    showError(data.error || 'Failed to start extraction');
+                }
+            } catch (error) {
+                showError('Network error: ' + error.message);
+            }
+        }
+
+        function displayResults(results) {
+            document.getElementById('loadingSection').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'block';
+
+            // Display concept matrix
+            if (results.concept_matrix) {
+                displayConceptMatrix(results.concept_matrix);
+            }
+
+            // Display seed keywords
+            if (results.seed_keywords) {
+                displaySeedKeywords(results.seed_keywords);
+            }
+
+            // Display IPC classifications
+            if (results.ipcs) {
+                displayIPCClassifications(results.ipcs);
+            }
+        }
+
+        function displayConceptMatrix(conceptMatrix) {
+            const container = document.getElementById('conceptMatrix');
+            container.innerHTML = '';
+
+            Object.entries(conceptMatrix).forEach(([key, value]) => {
+                const item = document.createElement('div');
+                item.className = 'concept-item';
+                item.innerHTML = `
+                    <strong>${formatLabel(key)}</strong>
+                    ${value}
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function displaySeedKeywords(seedKeywords) {
+            const container = document.getElementById('seedKeywords');
+            container.innerHTML = '';
+
+            Object.entries(seedKeywords).forEach(([category, keywords]) => {
+                const categoryDiv = document.createElement('div');
+                categoryDiv.className = 'keyword-category';
+                
+                const tagsDiv = document.createElement('div');
+                tagsDiv.className = 'keyword-tags';
+                
+                keywords.forEach(keyword => {
+                    const tag = document.createElement('span');
+                    tag.className = 'keyword-tag';
+                    tag.textContent = keyword;
+                    tagsDiv.appendChild(tag);
+                });
+
+                categoryDiv.innerHTML = `<strong>${formatLabel(category)}</strong>`;
+                categoryDiv.appendChild(tagsDiv);
+                container.appendChild(categoryDiv);
+            });
+        }
+
+        function displayIPCClassifications(ipcs) {
+            const container = document.getElementById('ipcClassifications');
+            container.innerHTML = '';
+
+            if (Array.isArray(ipcs)) {
+                ipcs.slice(0, 5).forEach(ipc => {
+                    const item = document.createElement('div');
+                    item.className = 'concept-item';
+                    item.innerHTML = `
+                        <strong>${ipc.category || 'N/A'}</strong>
+                        ${ipc.description || 'No description available'}
+                    `;
+                    container.appendChild(item);
+                });
+            }
+        }
+
+        function showEvaluationSection() {
+            document.getElementById('evaluationSection').style.display = 'block';
+        }
+
+        function handleEvaluation(action) {
+            if (action === 'reject') {
+                document.getElementById('feedbackSection').style.display = 'block';
+                return;
+            }
+
+            if (action === 'edit') {
+                // TODO: Implement editing interface
+                showError('Manual editing feature will be implemented soon. Please use approve or reject for now.');
+                return;
+            }
+
+            submitEvaluation(action);
+        }
+
+        async function submitEvaluation(action, feedback = null) {
+            try {
+                const response = await fetch(`/api/evaluate/${currentSessionId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        action, 
+                        feedback 
+                    })
+                });
+
+                if (response.ok) {
+                    document.getElementById('evaluationSection').style.display = 'none';
+                    showSuccess('Evaluation submitted successfully. Processing final results...');
+                } else {
+                    showError('Failed to submit evaluation');
+                }
+            } catch (error) {
+                showError('Network error: ' + error.message);
+            }
+        }
+
+        function submitFeedback() {
+            const feedback = document.getElementById('feedbackText').value.trim();
+            if (!feedback) {
+                showError('Please provide feedback before submitting.');
+                return;
+            }
+
+            submitEvaluation('reject', feedback);
+            document.getElementById('feedbackSection').style.display = 'none';
+        }
+
+        function showFinalResults(data) {
+            document.getElementById('finalResults').style.display = 'block';
+            
+            const container = document.getElementById('finalResultsContent');
+            const results = data.results;
+            
+            let html = '<div class="final-results-grid">';
+            
+            // Display final keywords
+            if (results.final_keywords) {
+                html += `
+                    <div class="result-card">
+                        <h4><span class="emoji">🔗</span>Expanded Keywords</h4>
+                        <div class="final-keywords">
+                `;
+                
+                Object.entries(results.final_keywords).forEach(([keyword, synonyms]) => {
+                    html += `
+                        <div class="keyword-expansion">
+                            <strong>${keyword}:</strong>
+                            <div class="synonym-tags">
+                    `;
+                    
+                    synonyms.forEach(synonym => {
+                        html += `<span class="synonym-tag">${synonym}</span>`;
+                    });
+                    
+                    html += '</div></div>';
+                });
+                
+                html += '</div></div>';
+            }
+            
+            // Display queries
+            if (results.queries && results.queries.queries) {
+                html += `
+                    <div class="result-card">
+                        <h4><span class="emoji">🔍</span>Search Queries</h4>
+                        <div class="queries-list">
+                `;
+                
+                results.queries.queries.forEach((query, index) => {
+                    html += `<div class="query-item">${index + 1}. ${query}</div>`;
+                });
+                
+                html += '</div></div>';
+            }
+            
+            // Display URLs with scores
+            if (results.final_url && results.final_url.length > 0) {
+                html += `
+                    <div class="result-card">
+                        <h4><span class="emoji">🌐</span>Related Patents</h4>
+                        <div class="url-list">
+                `;
+                
+                // Sort URLs by score (scenario + problem)
+                const sortedUrls = results.final_url.sort((a, b) => {
+                    const scoreA = (a.user_scenario || 0) + (a.user_problem || 0);
+                    const scoreB = (b.user_scenario || 0) + (b.user_problem || 0);
+                    return scoreB - scoreA;
+                });
+                
+                sortedUrls.slice(0, 10).forEach((urlData, index) => {
+                    const totalScore = (urlData.user_scenario || 0) + (urlData.user_problem || 0);
+                    const scoreClass = totalScore > 1.4 ? 'high-score' : totalScore > 0.8 ? 'medium-score' : 'low-score';
+                    
+                    html += `
+                        <div class="url-item ${scoreClass}">
+                            <div class="url-info">
+                                <a href="${urlData.url}" target="_blank" class="url-link">
+                                    Patent ${index + 1}
+                                </a>
+                                <small class="url-address">${urlData.url}</small>
+                            </div>
+                            <div class="url-scores">
+                                <span class="score-badge scenario">Scenario: ${(urlData.user_scenario || 0).toFixed(2)}</span>
+                                <span class="score-badge problem">Problem: ${(urlData.user_problem || 0).toFixed(2)}</span>
+                                <span class="score-badge total">Total: ${totalScore.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div></div>';
+            }
+            
+            html += '</div>';
+            
+            // Add summary statistics
+            html += `
+                <div class="result-card summary-stats">
+                    <h4><span class="emoji">📊</span>Summary Statistics</h4>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <strong>Total Keywords:</strong> ${Object.keys(results.final_keywords || {}).length}
+                        </div>
+                        <div class="stat-item">
+                            <strong>Total Synonyms:</strong> ${Object.values(results.final_keywords || {}).reduce((acc, arr) => acc + arr.length, 0)}
+                        </div>
+                        <div class="stat-item">
+                            <strong>Search Queries:</strong> ${results.queries?.queries?.length || 0}
+                        </div>
+                        <div class="stat-item">
+                            <strong>Patent URLs Found:</strong> ${results.final_url?.length || 0}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+        }
+
+        function formatLabel(str) {
+            return str.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function showError(message) {
+            const existingAlert = document.querySelector('.alert');
+            if (existingAlert) {
+                existingAlert.remove();
+            }
+
+            const alert = document.createElement('div');
+            alert.className = 'alert error';
+            alert.textContent = message;
+            
+            document.querySelector('.content').insertBefore(alert, document.querySelector('.content').firstChild);
+            
+            setTimeout(() => alert.remove(), 5000);
+        }
+
+        function showSuccess(message) {
+            const existingAlert = document.querySelector('.alert');
+            if (existingAlert) {
+                existingAlert.remove();
+            }
+
+            const alert = document.createElement('div');
+            alert.className = 'alert success';
+            alert.textContent = message;
+            
+            document.querySelector('.content').insertBefore(alert, document.querySelector('.content').firstChild);
+            
+            setTimeout(() => alert.remove(), 5000);
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('problemInput').value = '';
+            document.getElementById('technicalInput').value = '';
+            document.getElementById('inputSection').style.display = 'block';
+            document.getElementById('loadingSection').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'none';
+            currentSessionId = null;
+        }
+    </script>
+</body>
+</html>

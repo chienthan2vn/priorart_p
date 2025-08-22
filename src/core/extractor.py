@@ -122,17 +122,19 @@ class ExtractionState(TypedDict):
 class CoreConceptExtractor:
     """Patent seed keyword extraction system"""
     
-    def __init__(self, model_name: str = None, use_checkpointer: bool = None):
+    def __init__(self, model_name: str = None, use_checkpointer: bool = None, web_mode: bool = False):
         """
         Initialize the CoreConceptExtractor.
         
         Args:
             model_name: Name of the LLM model to use
             use_checkpointer: Whether to use checkpointer for graph state
+            web_mode: Whether to use web interface mode for human evaluation
         """
         # Use settings from config file with fallback to parameters
         self.model_name = model_name if model_name is not None else settings.DEFAULT_MODEL_NAME
         self.use_checkpointer = use_checkpointer if use_checkpointer is not None else settings.USE_CHECKPOINTER
+        self.web_mode = web_mode
 
         self.llm = ChatOpenAI(
             model_name="qwen/qwen-2.5-72b-instruct:free",
@@ -303,6 +305,18 @@ class CoreConceptExtractor:
     
     def step3_human_evaluation(self, state: ExtractionState) -> ExtractionState:
         """Step 3: Human in the loop evaluation with three options"""
+        concept_matrix = state["concept_matrix"]
+        seed_keywords = state["seed_keywords"]
+        
+        if self.web_mode:
+            # Web mode: send data to web interface and wait for response
+            return self._web_human_evaluation(state, concept_matrix, seed_keywords)
+        else:
+            # CLI mode: original implementation
+            return self._cli_human_evaluation(state, concept_matrix, seed_keywords)
+    
+    def _cli_human_evaluation(self, state: ExtractionState, concept_matrix: ConceptMatrix, seed_keywords: SeedKeywords) -> ExtractionState:
+        """CLI-based human evaluation (original implementation)"""
         msgs = self.validation_messages
         
         print("\n" + msgs["separator"])
@@ -310,9 +324,6 @@ class CoreConceptExtractor:
         print(msgs["separator"])
         
         # Display final results
-        concept_matrix = state["concept_matrix"]
-        seed_keywords = state["seed_keywords"]
-        
         print(msgs["concept_matrix_header"])
         for field, value in concept_matrix.dict().items():
             print(f"  • {field.replace('_', ' ').title()}: {value}")
@@ -340,9 +351,63 @@ class CoreConceptExtractor:
             else:
                 print(msgs["invalid_action"])
         
-        state["validation_feedback"] = feedback
-        
         return {"validation_feedback": feedback}
+    
+    def _web_human_evaluation(self, state: ExtractionState, concept_matrix: ConceptMatrix, seed_keywords: SeedKeywords) -> ExtractionState:
+        """Web-based human evaluation - sends data to web interface and waits for response"""
+        import sys
+        
+        # Prepare data for web interface
+        web_data = {
+            "concept_matrix": concept_matrix.dict(),
+            "seed_keywords": seed_keywords.dict(),
+            "ipcs": state.get("ipcs", []),
+            "summary_text": state.get("summary_text", ""),
+            "problem": state.get("problem", ""),
+            "technical": state.get("technical", "")
+        }
+        
+        # Send data to Node.js via stdout
+        output = {
+            "type": "human_evaluation_needed",
+            "data": web_data
+        }
+        print(json.dumps(output))
+        sys.stdout.flush()
+        
+        # Wait for response from Node.js via stdin
+        try:
+            response_line = sys.stdin.readline().strip()
+            if response_line:
+                response_data = json.loads(response_line)
+                
+                # Create ValidationFeedback object
+                action = response_data.get("action", "approve")
+                feedback_text = response_data.get("feedback")
+                edited_keywords_data = response_data.get("editedKeywords")
+                
+                edited_keywords = None
+                if edited_keywords_data:
+                    edited_keywords = SeedKeywords(**edited_keywords_data)
+                
+                feedback = ValidationFeedback(
+                    action=action,
+                    edited_keywords=edited_keywords,
+                    feedback=feedback_text
+                )
+                
+                return {"validation_feedback": feedback}
+            else:
+                # Default to approve if no response
+                logger.warning("No response received from web interface, defaulting to approve")
+                feedback = ValidationFeedback(action="approve")
+                return {"validation_feedback": feedback}
+                
+        except Exception as e:
+            logger.error(f"Error reading web response: {e}")
+            # Default to approve on error
+            feedback = ValidationFeedback(action="approve")
+            return {"validation_feedback": feedback}
 
     def manual_editing(self, state: ExtractionState) -> ExtractionState:
         """Allow user to manually edit keywords"""
@@ -355,6 +420,15 @@ class CoreConceptExtractor:
     
     def _get_manual_edits(self, current_keywords: SeedKeywords) -> ValidationFeedback:
         """Get manual edits from user"""
+        if self.web_mode:
+            # Web mode: send editing request to web interface
+            return self._web_manual_edits(current_keywords)
+        else:
+            # CLI mode: original implementation
+            return self._cli_manual_edits(current_keywords)
+    
+    def _cli_manual_edits(self, current_keywords: SeedKeywords) -> ValidationFeedback:
+        """CLI-based manual editing (original implementation)"""
         logger.info("📝 Manual Editing Mode")
         print("\n📝 Manual Editing Mode")
         print("Current keywords will be displayed. Press Enter to keep current value, or type new keywords separated by commas.")
@@ -374,6 +448,49 @@ class CoreConceptExtractor:
         
         edited_keywords = SeedKeywords(**edited_data)
         return ValidationFeedback(action="edit", edited_keywords=edited_keywords)
+    
+    def _web_manual_edits(self, current_keywords: SeedKeywords) -> ValidationFeedback:
+        """Web-based manual editing - sends editing request to web interface and waits for response"""
+        import sys
+        
+        # Prepare data for web interface
+        web_data = {
+            "type": "manual_editing_needed",
+            "current_keywords": current_keywords.dict()
+        }
+        
+        # Send editing request to Node.js via stdout
+        output = {
+            "type": "manual_editing_needed",
+            "data": web_data
+        }
+        print(json.dumps(output))
+        sys.stdout.flush()
+        
+        # Wait for response from Node.js via stdin
+        try:
+            response_line = sys.stdin.readline().strip()
+            if response_line:
+                response_data = json.loads(response_line)
+                
+                # Get edited keywords from response
+                edited_keywords_data = response_data.get("editedKeywords")
+                
+                if edited_keywords_data:
+                    edited_keywords = SeedKeywords(**edited_keywords_data)
+                    return ValidationFeedback(action="edit", edited_keywords=edited_keywords)
+                else:
+                    # If no edits provided, keep original keywords
+                    return ValidationFeedback(action="edit", edited_keywords=current_keywords)
+            else:
+                # Default to keeping original keywords if no response
+                logger.warning("No response received from web interface for manual editing, keeping original keywords")
+                return ValidationFeedback(action="edit", edited_keywords=current_keywords)
+                
+        except Exception as e:
+            logger.error(f"Error reading web response for manual editing: {e}")
+            # Default to keeping original keywords on error
+            return ValidationFeedback(action="edit", edited_keywords=current_keywords)
       
     def _parse_concept_response(self, response: str) -> ConceptMatrix:
         """Parse response when JSON parsing fails"""
