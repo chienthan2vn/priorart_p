@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patent AI Agent - Keyword Extraction System</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .main-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            margin: 20px auto;
+            max-width: 1200px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 20px 20px 0 0;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin: 0;
+        }
+
+        .nav-tabs {
+            border-bottom: 2px solid var(--secondary-color);
+            background: #f8f9fa;
+            padding: 0 2rem;
+        }
+
+        .nav-tabs .nav-link {
+            border: none;
+            color: var(--primary-color);
+            font-weight: 600;
+            padding: 1rem 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .nav-tabs .nav-link:hover {
+            background: rgba(52, 152, 219, 0.1);
+            border: none;
+        }
+
+        .nav-tabs .nav-link.active {
+            background: var(--secondary-color);
+            color: white;
+            border: none;
+        }
+
+        .tab-content {
+            padding: 2rem;
+        }
+
+        .form-floating textarea {
+            min-height: 120px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--secondary-color) 0%, #2980b9 100%);
+            border: none;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success-color) 0%, #229954 100%);
+            border: none;
+            border-radius: 50px;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--accent-color) 0%, #c0392b 100%);
+            border: none;
+            border-radius: 50px;
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, var(--warning-color) 0%, #e67e22 100%);
+            border: none;
+            border-radius: 50px;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        .keyword-badge {
+            background: linear-gradient(135deg, var(--secondary-color) 0%, #2980b9 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            margin: 0.25rem;
+            display: inline-block;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .status-success {
+            background: rgba(39, 174, 96, 0.1);
+            color: var(--success-color);
+            border: 1px solid rgba(39, 174, 96, 0.3);
+        }
+
+        .status-warning {
+            background: rgba(243, 156, 18, 0.1);
+            color: var(--warning-color);
+            border: 1px solid rgba(243, 156, 18, 0.3);
+        }
+
+        .status-danger {
+            background: rgba(231, 76, 60, 0.1);
+            color: var(--accent-color);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+        }
+
+        .feature-card {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            height: 100%;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--secondary-color);
+            box-shadow: 0 10px 30px rgba(52, 152, 219, 0.2);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            color: var(--secondary-color);
+            margin-bottom: 1rem;
+        }
+
+        .alert {
+            border-radius: 15px;
+            border: none;
+            padding: 1rem 1.5rem;
+        }
+
+        .progress {
+            height: 8px;
+            border-radius: 10px;
+            background: rgba(52, 152, 219, 0.1);
+        }
+
+        .progress-bar {
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--secondary-color) 0%, #2980b9 100%);
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .tab-content {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="main-container">
+            <!-- Header -->
+            <div class="header">
+                <h1><i class="bi bi-lightbulb"></i> Patent AI Agent</h1>
+                <p>AI-Powered Patent Keyword Extraction & Prior Art Search System</p>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="extract-tab" data-bs-toggle="tab" data-bs-target="#extract" type="button" role="tab">
+                        <i class="bi bi-search"></i> Keyword Extraction
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="ipc-tab" data-bs-toggle="tab" data-bs-target="#ipc" type="button" role="tab">
+                        <i class="bi bi-tags"></i> IPC Classification
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="patent-tab" data-bs-toggle="tab" data-bs-target="#patent" type="button" role="tab">
+                        <i class="bi bi-link-45deg"></i> Patent Analysis
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="similarity-tab" data-bs-toggle="tab" data-bs-target="#similarity" type="button" role="tab">
+                        <i class="bi bi-bar-chart"></i> Similarity Check
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="sessions-tab" data-bs-toggle="tab" data-bs-target="#sessions" type="button" role="tab">
+                        <i class="bi bi-collection"></i> Sessions
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Tab Content -->
+            <div class="tab-content" id="mainTabsContent">
+                <!-- Keyword Extraction Tab -->
+                <div class="tab-pane fade show active" id="extract" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="mb-0"><i class="bi bi-input-cursor"></i> Patent Idea Input</h5>
+                                </div>
+                                <div class="card-body">
+                                    <form id="extractionForm">
+                                        <div class="form-floating mb-3">
+                                            <input type="text" class="form-control" id="ideaTitle" placeholder="Smart Irrigation System">
+                                            <label for="ideaTitle">Idea Title</label>
+                                        </div>
+                                        
+                                        <div class="form-floating mb-3">
+                                            <textarea class="form-control" id="userScenario" placeholder="Describe the user scenario..."></textarea>
+                                            <label for="userScenario">User Scenario</label>
+                                        </div>
+                                        
+                                        <div class="form-floating mb-3">
+                                            <textarea class="form-control" id="userProblem" placeholder="Describe the problem..."></textarea>
+                                            <label for="userProblem">User Problem</label>
+                                        </div>
+                                        
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" id="autoMode">
+                                            <label class="form-check-label" for="autoMode">
+                                                Auto Mode (Skip human validation)
+                                            </label>
+                                        </div>
+                                        
+                                        <button type="submit" class="btn btn-primary w-100">
+                                            <i class="bi bi-play-circle"></i> Start Extraction
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-6">
+                            <div id="extractionResults"></div>
+                            <div id="extractionLoading" class="loading-spinner">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Processing...</span>
+                                </div>
+                                <p class="mt-2">Processing patent idea...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- IPC Classification Tab -->
+                <div class="tab-pane fade" id="ipc" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8 mx-auto">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-success text-white">
+                                    <h5 class="mb-0"><i class="bi bi-tags"></i> IPC Classification</h5>
+                                </div>
+                                <div class="card-body">
+                                    <form id="ipcForm">
+                                        <div class="form-floating mb-3">
+                                            <textarea class="form-control" id="ipcText" style="min-height: 150px;" placeholder="Enter patent text for IPC classification..."></textarea>
+                                            <label for="ipcText">Patent Text</label>
+                                        </div>
+                                        
+                                        <button type="submit" class="btn btn-success w-100">
+                                            <i class="bi bi-search"></i> Classify IPC
+                                        </button>
+                                    </form>
+                                    
+                                    <div id="ipcResults" class="mt-4"></div>
+                                    <div id="ipcLoading" class="loading-spinner">
+                                        <div class="spinner-border text-success" role="status">
+                                            <span class="visually-hidden">Classifying...</span>
+                                        </div>
+                                        <p class="mt-2">Classifying patent text...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Patent Analysis Tab -->
+                <div class="tab-pane fade" id="patent" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8 mx-auto">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-warning text-white">
+                                    <h5 class="mb-0"><i class="bi bi-link-45deg"></i> Patent URL Analysis</h5>
+                                </div>
+                                <div class="card-body">
+                                    <form id="patentForm">
+                                        <div class="form-floating mb-3">
+                                            <input type="url" class="form-control" id="patentUrl" placeholder="https://patents.google.com/patent/...">
+                                            <label for="patentUrl">Patent URL (Google Patents)</label>
+                                        </div>
+                                        
+                                        <button type="submit" class="btn btn-warning w-100">
+                                            <i class="bi bi-search"></i> Analyze Patent
+                                        </button>
+                                    </form>
+                                    
+                                    <div id="patentResults" class="mt-4"></div>
+                                    <div id="patentLoading" class="loading-spinner">
+                                        <div class="spinner-border text-warning" role="status">
+                                            <span class="visually-hidden">Analyzing...</span>
+                                        </div>
+                                        <p class="mt-2">Analyzing patent information...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Similarity Check Tab -->
+                <div class="tab-pane fade" id="similarity" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-10 mx-auto">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-info text-white">
+                                    <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Text Similarity Evaluation</h5>
+                                </div>
+                                <div class="card-body">
+                                    <form id="similarityForm">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-floating mb-3">
+                                                    <textarea class="form-control" id="text1" style="min-height: 150px;" placeholder="Enter first text..."></textarea>
+                                                    <label for="text1">First Text</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-floating mb-3">
+                                                    <textarea class="form-control" id="text2" style="min-height: 150px;" placeholder="Enter second text..."></textarea>
+                                                    <label for="text2">Second Text</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <button type="submit" class="btn btn-info w-100">
+                                            <i class="bi bi-search"></i> Evaluate Similarity
+                                        </button>
+                                    </form>
+                                    
+                                    <div id="similarityResults" class="mt-4"></div>
+                                    <div id="similarityLoading" class="loading-spinner">
+                                        <div class="spinner-border text-info" role="status">
+                                            <span class="visually-hidden">Evaluating...</span>
+                                        </div>
+                                        <p class="mt-2">Evaluating text similarity...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sessions Tab -->
+                <div class="tab-pane fade" id="sessions" role="tabpanel">
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0"><i class="bi bi-collection"></i> Active Sessions</h5>
+                                    <button class="btn btn-light btn-sm" onclick="loadSessions()">
+                                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div id="sessionsResults"></div>
+                                    <div id="sessionsLoading" class="loading-spinner">
+                                        <div class="spinner-border text-secondary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-2">Loading sessions...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JavaScript -->
+    <script src="static/app.js"></script>
+</body>
+</html>

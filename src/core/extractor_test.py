@@ -135,7 +135,7 @@ class CoreConceptExtractor:
         self.use_checkpointer = use_checkpointer if use_checkpointer is not None else settings.USE_CHECKPOINTER
         self.custom_evaluation_handler = custom_evaluation_handler
 
-        self.llm = Ollama(model=self.model_name, temperature=settings.MODEL_TEMPERATURE, num_ctx=settings.NUM_CTX)
+        # self.llm = Ollama(model=self.model_name, temperature=settings.MODEL_TEMPERATURE, num_ctx=settings.NUM_CTX)
         self.tavily_search = TavilySearch(
             max_results=settings.MAX_SEARCH_RESULTS,
             topic="general",
@@ -224,21 +224,21 @@ class CoreConceptExtractor:
     def input_normalization(self, state: ExtractionState) -> ExtractionState:
         """Normalize and clean input text before processing"""    
         # Get normalization prompt and parser from ExtractionPrompts
-        prompt, parser = self.prompts.get_normalization_prompt_and_parser()
-        response = self.llm.invoke(prompt.format(input=state["input_text"]))
+        # prompt, parser = self.prompts.get_normalization_prompt_and_parser()
+        # response = self.llm.invoke(prompt.format(input=state["input_text"]))
 
         try:
-            normalized_data = parser.parse(response)
-            normalized_input = NormalizationOutput(**normalized_data.dict())
-            logger.info("Normalization completed.")
+            # normalized_data = parser.parse(response)
+            # normalized_input = NormalizationOutput(**normalized_data.dict())
+            # logger.info("Normalization completed.")
 
             updated_state = {
-                "problem": normalized_input.problem,
-                "technical": normalized_input.technical,
+                "problem": "normalized_input.problem",
+                "technical": "normalized_input.technical",
                 "input_text": state["input_text"]
             }
-            logger.info(f"📝 Normalized problem: {normalized_input.problem}")
-            logger.info(f"📝 Normalized technical: {normalized_input.technical}")
+            # logger.info(f"📝 Normalized problem: {normalized_input.problem}")
+            # logger.info(f"📝 Normalized technical: {normalized_input.technical}")
             return updated_state
 
         except Exception as e:
@@ -261,39 +261,52 @@ class CoreConceptExtractor:
         """Step 1: Extract concept summary from document according to fields"""
         # Use normalized problem for concept extraction if available
 
-        prompt, parser = self.prompts.get_phase1_prompt_and_parser()
-        response = self.llm.invoke(prompt.format(problem=state["problem"]))
+        # prompt, parser = self.prompts.get_phase1_prompt_and_parser()
+        # response = self.llm.invoke(prompt.format(problem=state["problem"]))
         
-        try:
-            concept_data = parser.parse(response)
-            concept_matrix = ConceptMatrix(**concept_data.dict())
-        except Exception as e:
-            logger.warning(f"Parser failed: {e}, falling back to manual parsing")
-            concept_matrix = self._parse_concept_response(response)
+        # try:
+        #     concept_data = parser.parse(response)
+        #     concept_matrix = ConceptMatrix(**concept_data.dict())
+        # except Exception as e:
+        #     logger.warning(f"Parser failed: {e}, falling back to manual parsing")
+        #     concept_matrix = self._parse_concept_response(response)
+        
+        concept_matrix = ConceptMatrix(
+            problem_purpose="problem_purpose",
+            object_system="object_system",
+            environment_field="environment_field"
+        )
         
         return {"concept_matrix": concept_matrix}
 
     def step2_keyword_generation(self, state: ExtractionState) -> ExtractionState:
-        """Step 2: Generate main keywords for each field from summary"""
-        concept_matrix = state["concept_matrix"]
-        feedback = ""
-        if state.get("validation_feedback") and getattr(state["validation_feedback"], "feedback", None):
-            feedback = state["validation_feedback"].feedback
+        # """Step 2: Generate main keywords for each field from summary"""
+        # concept_matrix = state["concept_matrix"]
+        # feedback = ""
+        # if state.get("validation_feedback") and getattr(state["validation_feedback"], "feedback", None):
+        #     feedback = state["validation_feedback"].feedback
 
-        prompt, parser = self.prompts.get_phase2_prompt_and_parser()
-        response = self.llm.invoke(prompt.format(
-            problem_purpose=concept_matrix.problem_purpose,
-            object_system=concept_matrix.object_system,
-            environment_field=concept_matrix.environment_field,
-            feedback=feedback
-        ))
+        # prompt, parser = self.prompts.get_phase2_prompt_and_parser()
+        # response = self.llm.invoke(prompt.format(
+        #     problem_purpose=concept_matrix.problem_purpose,
+        #     object_system=concept_matrix.object_system,
+        #     environment_field=concept_matrix.environment_field,
+        #     feedback=feedback
+        # ))
         
-        try:
-            keyword_data = parser.parse(response)
-            seed_keywords = SeedKeywords(**keyword_data.dict())
-        except Exception as e:
-            logger.warning(f"Parser failed: {e}, falling back to manual parsing")
-            seed_keywords = self._parse_keyword_response(response)
+        # try:
+        #     keyword_data = parser.parse(response)
+        #     seed_keywords = SeedKeywords(**keyword_data.dict())
+        # except Exception as e:
+        #     logger.warning(f"Parser failed: {e}, falling back to manual parsing")
+        #     seed_keywords = self._parse_keyword_response(response)
+
+        seed_keywords = SeedKeywords(
+            problem_purpose=["problem_purpose"],
+            object_system=["object_system"],
+            environment_field=["environment_field"]
+        )
+        
         
         return {"seed_keywords": seed_keywords}
     
@@ -411,158 +424,160 @@ class CoreConceptExtractor:
     
     def gen_key(self, state: ExtractionState) -> ExtractionState:
         """Generate synonyms and related terms for keywords"""
-        def search_snippets(keyword: str, max_snippets: int = 3) -> List[str]:
-            results = self.tavily_search.invoke({"query": keyword})
-            snippets = [r['content'] for r in results.get("results", [])[:max_snippets]]
-            return snippets
+#         def search_snippets(keyword: str, max_snippets: int = 3) -> List[str]:
+#             results = self.tavily_search.invoke({"query": keyword})
+#             snippets = [r['content'] for r in results.get("results", [])[:max_snippets]]
+#             return snippets
 
-        prompt_template = """
-<OBJECTIVE_AND_PERSONA>
-You are a patent linguist specializing in technical terminology analysis. Your task is to analyze provided technical snippets and extract high-precision synonyms and related terms for patent search optimization.
-</OBJECTIVE_AND_PERSONA>
+#         prompt_template = """
+# <OBJECTIVE_AND_PERSONA>
+# You are a patent linguist specializing in technical terminology analysis. Your task is to analyze provided technical snippets and extract high-precision synonyms and related terms for patent search optimization.
+# </OBJECTIVE_AND_PERSONA>
 
-<INSTRUCTIONS>
-To complete the task, you need to follow these steps:
-1. Analyze the provided technical snippets for the given keyword
-2. Extract core synonyms that appear in the snippets and retain the same technical function
-3. Identify related terms that are broader, adjacent, or complementary to the keyword
-4. Provide justifications for each term based on snippet evidence
-5. Format the output as two distinct JSON lists
-</INSTRUCTIONS>
+# <INSTRUCTIONS>
+# To complete the task, you need to follow these steps:
+# 1. Analyze the provided technical snippets for the given keyword
+# 2. Extract core synonyms that appear in the snippets and retain the same technical function
+# 3. Identify related terms that are broader, adjacent, or complementary to the keyword
+# 4. Provide justifications for each term based on snippet evidence
+# 5. Format the output as two distinct JSON lists
+# </INSTRUCTIONS>
 
-<CONSTRAINTS>
-Do:
-- Include only terms that appear (exactly or inflected) in at least one snippet for core synonyms
-- Ensure core synonyms retain the same technical function as the original keyword
-- Limit core synonyms to 5-8 terms maximum
-- Limit related terms to 5 terms maximum
-- Provide clear justifications (≤10 words) for each core synonym
-- Provide rationale for each related term
-- Reference source snippet numbers for all terms
+# <CONSTRAINTS>
+# Do:
+# - Include only terms that appear (exactly or inflected) in at least one snippet for core synonyms
+# - Ensure core synonyms retain the same technical function as the original keyword
+# - Limit core synonyms to 5-8 terms maximum
+# - Limit related terms to 5 terms maximum
+# - Provide clear justifications (≤10 words) for each core synonym
+# - Provide rationale for each related term
+# - Reference source snippet numbers for all terms
 
-Don't:
-- Don't include terms not found in the provided snippets for core synonyms
-- Don't list full synonyms in the related terms section
-- Don't exceed the specified term limits
-- Don't provide justifications longer than 10 words for core synonyms
-- Don't include terms without proper source attribution
-</CONSTRAINTS>
+# Don't:
+# - Don't include terms not found in the provided snippets for core synonyms
+# - Don't list full synonyms in the related terms section
+# - Don't exceed the specified term limits
+# - Don't provide justifications longer than 10 words for core synonyms
+# - Don't include terms without proper source attribution
+# </CONSTRAINTS>
 
-<CONTEXT>
-Keyword: {keyword}
-Field Description: {context}
+# <CONTEXT>
+# Keyword: {keyword}
+# Field Description: {context}
 
-Technical Snippets:
-{snippets}
-</CONTEXT>
+# Technical Snippets:
+# {snippets}
+# </CONTEXT>
 
-<OUTPUT_FORMAT>
-The output format must be JSON format:
-{{
-    "core_synonyms": [
-        {{
-            "term": "example_term",
-            "justification": "appears frequently with same technical meaning",
-            "source": "src 1"
-        }}
-    ],
-    "related_terms": [
-        {{
-            "term": "broader_term",
-            "rationale": "encompasses the keyword within larger technical context",
-            "source": "src 2"
-        }}
-    ]
-}}
-</OUTPUT_FORMAT>
+# <OUTPUT_FORMAT>
+# The output format must be JSON format:
+# {{
+#     "core_synonyms": [
+#         {{
+#             "term": "example_term",
+#             "justification": "appears frequently with same technical meaning",
+#             "source": "src 1"
+#         }}
+#     ],
+#     "related_terms": [
+#         {{
+#             "term": "broader_term",
+#             "rationale": "encompasses the keyword within larger technical context",
+#             "source": "src 2"
+#         }}
+#     ]
+# }}
+# </OUTPUT_FORMAT>
 
-<RECAP>
-Extract 5-8 core synonyms and up to 5 related terms from the provided snippets. Core synonyms must appear in snippets and retain identical technical function. Related terms should be broader/adjacent concepts. All terms require source attribution and justification. IMPORTANT: Only generate the JSON output as defined - do not provide explanations, commentary, or any additional text beyond the required JSON format.
-</RECAP>
-        """
+# <RECAP>
+# Extract 5-8 core synonyms and up to 5 related terms from the provided snippets. Core synonyms must appear in snippets and retain identical technical function. Related terms should be broader/adjacent concepts. All terms require source attribution and justification. IMPORTANT: Only generate the JSON output as defined - do not provide explanations, commentary, or any additional text beyond the required JSON format.
+# </RECAP>
+#         """
 
-        prompt = PromptTemplate.from_template(prompt_template)
-        chain = LLMChain(llm=self.llm, prompt=prompt)
-        sys_keys = {}
+#         prompt = PromptTemplate.from_template(prompt_template)
+#         chain = LLMChain(llm=self.llm, prompt=prompt)
+#         sys_keys = {}
 
-        def generate_synonyms(keyword: str, context: str):
-            logger.info(f"🔍 Searching snippets for keyword: {keyword}")
-            snippets = search_snippets(keyword)
-            if not snippets:
-                logger.warning(f"❌ No snippets found for keyword: {keyword}")
-                return
+#         def generate_synonyms(keyword: str, context: str):
+#             logger.info(f"🔍 Searching snippets for keyword: {keyword}")
+#             snippets = search_snippets(keyword)
+#             if not snippets:
+#                 logger.warning(f"❌ No snippets found for keyword: {keyword}")
+#                 return
 
-            formatted_snippets = "\n".join([f"[{i+1}] {s}" for i, s in enumerate(snippets)])
-            result = chain.run({
-                "keyword": keyword,
-                "snippets": formatted_snippets,
-                "context": context,
-            })
+#             formatted_snippets = "\n".join([f"[{i+1}] {s}" for i, s in enumerate(snippets)])
+#             result = chain.run({
+#                 "keyword": keyword,
+#                 "snippets": formatted_snippets,
+#                 "context": context,
+#             })
             
-            try:
-                # Try to parse JSON response
-                result_clean = result.strip()
-                if result_clean.startswith("```json"):
-                    result_clean = result_clean.replace("```json", "").replace("```", "")
+#             try:
+#                 # Try to parse JSON response
+#                 result_clean = result.strip()
+#                 if result_clean.startswith("```json"):
+#                     result_clean = result_clean.replace("```json", "").replace("```", "")
                 
-                parsed_result = json.loads(result_clean)
+#                 parsed_result = json.loads(result_clean)
                 
-                # Extract terms from both core synonyms and related terms
-                res = []
+#                 # Extract terms from both core synonyms and related terms
+#                 res = []
                 
-                # Add core synonyms
-                if "core_synonyms" in parsed_result:
-                    for item in parsed_result["core_synonyms"]:
-                        if isinstance(item, dict) and "term" in item:
-                            res.append(item["term"])
-                        elif isinstance(item, str):
-                            res.append(item)
+#                 # Add core synonyms
+#                 if "core_synonyms" in parsed_result:
+#                     for item in parsed_result["core_synonyms"]:
+#                         if isinstance(item, dict) and "term" in item:
+#                             res.append(item["term"])
+#                         elif isinstance(item, str):
+#                             res.append(item)
                 
-                # Add related terms
-                if "related_terms" in parsed_result:
-                    for item in parsed_result["related_terms"]:
-                        if isinstance(item, dict) and "term" in item:
-                            res.append(item["term"])
-                        elif isinstance(item, str):
-                            res.append(item)
+#                 # Add related terms
+#                 if "related_terms" in parsed_result:
+#                     for item in parsed_result["related_terms"]:
+#                         if isinstance(item, dict) and "term" in item:
+#                             res.append(item["term"])
+#                         elif isinstance(item, str):
+#                             res.append(item)
                 
-                sys_keys[keyword] = res
-                logger.info(f"✅ Extracted {len(res)} terms for '{keyword}': {res}")
+#                 sys_keys[keyword] = res
+#                 logger.info(f"✅ Extracted {len(res)} terms for '{keyword}': {res}")
                 
-            except (json.JSONDecodeError, KeyError) as e:
-                logger.warning(f"⚠️ JSON parsing failed for '{keyword}': {e}")
-                logger.debug(f"Raw result: {result}")
+#             except (json.JSONDecodeError, KeyError) as e:
+#                 logger.warning(f"⚠️ JSON parsing failed for '{keyword}': {e}")
+#                 logger.debug(f"Raw result: {result}")
                 
-                # Fallback to original parsing method
-                syn_raw = result
-                raws = syn_raw.split("\n")
+#                 # Fallback to original parsing method
+#                 syn_raw = result
+#                 raws = syn_raw.split("\n")
 
-                st = 0
-                et = 0
-                for i in range(len(raws)):
-                    if "A. Core Synonyms" in raws[i]:
-                        st = i+1
-                        for j in range(st+1, len(raws)):
-                            if "B. Related Terms" in raws[j]:
-                                et = j
-                                break
-                        break
-                raws = raws[st:et]
-                res = []
-                for item in raws:
-                    try:
-                        res.append(item.split("—")[0].split(".")[1].strip())
-                    except:
-                        pass
+#                 st = 0
+#                 et = 0
+#                 for i in range(len(raws)):
+#                     if "A. Core Synonyms" in raws[i]:
+#                         st = i+1
+#                         for j in range(st+1, len(raws)):
+#                             if "B. Related Terms" in raws[j]:
+#                                 et = j
+#                                 break
+#                         break
+#                 raws = raws[st:et]
+#                 res = []
+#                 for item in raws:
+#                     try:
+#                         res.append(item.split("—")[0].split(".")[1].strip())
+#                     except:
+#                         pass
 
-                sys_keys[keyword] = res
+#                 sys_keys[keyword] = res
 
-        concept_matrix = state["concept_matrix"].dict()
-        seed_keywords = state["seed_keywords"].dict()
+#         concept_matrix = state["concept_matrix"].dict()
+#         seed_keywords = state["seed_keywords"].dict()
 
-        for context in concept_matrix:
-            for key in seed_keywords[context]:
-                generate_synonyms(key, concept_matrix[context])
+#         for context in concept_matrix:
+#             for key in seed_keywords[context]:
+#                 generate_synonyms(key, concept_matrix[context])
+        sys_keys = {}
+        
 
         return {"final_keywords": sys_keys}
 
